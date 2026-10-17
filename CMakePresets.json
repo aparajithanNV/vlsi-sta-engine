@@ -1,0 +1,52 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "toolchainFile": "$env{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            }
+        },
+        {
+            "name": "debug-sanitizers",
+            "inherits": "base",
+            "displayName": "Debug + ASan/UBSan",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fsanitize-address-use-after-return=always -fsanitize-address-use-after-scope -fno-sanitize-recover=all -fno-omit-frame-pointer -g3 -O0",
+                "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined"
+            },
+            "environment": {
+                "ASAN_OPTIONS": "detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1:detect_invalid_pointer_pairs=2:detect_leaks=1:symbolize=1",
+                "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1",
+                "ASAN_SYMBOLIZER_PATH": "/usr/bin/llvm-symbolizer"
+            }
+        },
+        {
+            "name": "profile",
+            "inherits": "base",
+            "displayName": "RelWithDebInfo for perf",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "CMAKE_CXX_FLAGS": "-O2 -g -fno-omit-frame-pointer -DNDEBUG"
+            }
+        },
+        {
+            "name": "release",
+            "inherits": "base",
+            "displayName": "Release (for publishable benchmarks)",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_CXX_FLAGS": "-O3 -DNDEBUG"
+            }
+        }
+    ]
+}
+

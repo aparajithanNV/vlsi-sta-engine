@@ -1,0 +1,10 @@
+{
+    "name": "vlsi-sta-engine",
+    "version": "0.1.0",
+    "dependencies": [
+        "gtest",
+        "benchmark",
+        "taskflow"
+    ]
+}
+
