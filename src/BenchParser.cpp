@@ -11,9 +11,7 @@
 #include <string>
 #include <cctype>
 
-/* TODO
- * Need to add virtual source node to graph and update the Parser tests to consider this newly added source node
- */
+// TODO Need to add virtual source node to graph and update the Parser tests to consider this newly added source node
 
 auto BenchParser::parse_bench(std::istream& is, TimingGraph& timing_graph) -> bool
 {

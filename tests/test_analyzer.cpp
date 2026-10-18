@@ -3,6 +3,7 @@
 //
 
 #include <gtest/gtest.h>
+#include <vector>
 #include "sta/TimingAnalyzer.h"
 #include "sta/TimingGraph.h"
 
@@ -12,6 +13,7 @@ namespace
     {
     protected:
         TimingGraph timing_graph;
+        STAState sta_state;
 
         void SetUp() override
         {
@@ -67,21 +69,48 @@ namespace
             timing_graph.add_arc(w1, w0, ArcType::GATE, 2.0, 2.0);
             timing_graph.add_arc(w2, w0, ArcType::GATE, 2.0, 2.0);
             timing_graph.add_arc(w0, f, ArcType::WIRE, 0.0, 0.2);
-
+            timing_graph.populate_pin_neighbors();
             auto success = timing_graph.find_topological_levels();
+
+            sta_state.circuit_RAT = 5.5;
+            auto num_pins = timing_graph.get_number_of_pins();
+            sta_state.actual_arrival_times = std::vector<float>(num_pins, 0.0);
+            sta_state.required_arrival_times = std::vector<float>(num_pins, 0.0);
+            sta_state.slack = std::vector<float>(num_pins, 0.0);
         }
     };
 
     TEST_F(TimingAnalyzerTest, FullPassLateMode)
     {
-        // slack = -0.35
-        // auto late_mode_slack = calculate_slack(timing_graph, Mode::FullPassLate);
+        const std::vector<float> pin_AAT{0, 0, 0.6, 1.1, 0.1, 3.2, 0.15, 1.2, 3.4, 1.4, 0.7, 5.65, 3.4, 3.65, 5.85, 0};
+        const std::vector<float> pin_RAT{0.95, -0.35, 0.95, 0.75, -0.25, 3.1, 1.1, 1.1, 3.05, 1.05, 1.05, 5.3, 3.3, 3.3, 5.5, -0.35};
+        const std::vector<float> pin_slack{0.95, -0.35, 0.35, -0.35, -0.35, -0.1, 0.95, -0.1, -0.35, -0.35, 0.35, -0.35, -0.1, -0.35, -0.35, -0.35};
+        calculate_slack_full_pass_late(timing_graph, sta_state);
+        auto num_pins = timing_graph.get_number_of_pins();
+        for (PinID i = 0; i < num_pins; i++)
+        {
+            ASSERT_NEAR(sta_state.actual_arrival_times[i], pin_AAT[i], 1e-5);
+            ASSERT_NEAR(sta_state.required_arrival_times[i], pin_RAT[i], 1e-5);
+            ASSERT_NEAR(sta_state.slack[i], pin_slack[i], 1e-5);
+        }
+        ASSERT_NEAR(sta_state.wns, -0.35, 1e-5);
     }
 
     TEST_F(TimingAnalyzerTest, FullPassEarlyMode)
     {
-        // slack = -1
-        // auto early_mode_slack = calculate_slack(timing_graph, Mode::FullPassEarly);
+        const std::vector<float> pin_AAT{0, 0, 0, 1, 0, 2, 0, 1, 2, 1, 0, 4, 2, 2, 4, 0};
+        const std::vector<float> pin_RAT{1, 0, 1, 1, 0, 3, 1, 1, 3, 1, 1, 5, 3, 3, 5, 1};
+        const std::vector<float> pin_slack{-1, 0, -1, 0, 0, -1, -1, 0, -1, 0, -1, -1, -1, -1, -1, -1};
+        sta_state.circuit_RAT = 5.0;
+        calculate_slack_full_pass_early(timing_graph, sta_state);
+        auto num_pins = timing_graph.get_number_of_pins();
+        for (PinID i = 0; i < num_pins; i++)
+        {
+            ASSERT_NEAR(sta_state.actual_arrival_times[i], pin_AAT[i], 1e-5);
+            ASSERT_NEAR(sta_state.required_arrival_times[i], pin_RAT[i], 1e-5);
+            ASSERT_NEAR(sta_state.slack[i], pin_slack[i], 1e-5);
+        }
+        ASSERT_NEAR(sta_state.wns, -1.0, 1e-5);
     }
 
     TEST_F(TimingAnalyzerTest, IncrementalLateMode)

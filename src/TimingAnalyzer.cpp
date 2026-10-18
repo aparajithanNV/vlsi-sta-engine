@@ -6,6 +6,7 @@
 
 #include <queue>
 #include <cmath>
+#include <limits>
 
 auto analyze(TimingGraph& timing_graph, STAMode sta_mode, STAState& sta_state, ArcUpdates& arc_data) -> bool
 {
@@ -19,17 +20,28 @@ auto analyze(TimingGraph& timing_graph, STAMode sta_mode, STAState& sta_state, A
     }
     else if (sta_mode == STAMode::IncrementalEarly)
     {
-        calculate_slack_incremental_early(timing_graph, sta_state, arc_data);
+        calculate_incremental_AAT(timing_graph, sta_state, arc_data, Analysis::Early);
+        calculate_incremental_RAT(timing_graph, sta_state, arc_data, Analysis::Early);
+        // calculate_slack_incremental_early(timing_graph, sta_state, arc_data);
     }
     else if (sta_mode == STAMode::IncrementalLate)
     {
-        calculate_slack_incremental_late(timing_graph, sta_state, arc_data);
+        calculate_incremental_AAT(timing_graph, sta_state, arc_data, Analysis::Late);
+        calculate_incremental_RAT(timing_graph, sta_state, arc_data, Analysis::Late);
+        // calculate_slack_incremental_late(timing_graph, sta_state, arc_data);
     }
     else
     {
         return true;
     }
     return false;
+}
+
+auto calculate_slack_full_pass_early(TimingGraph& timing_graph, STAState& sta_state) -> void
+{
+    calculate_AAT(timing_graph, sta_state, Analysis::Early);
+    calculate_RAT(timing_graph, sta_state, Analysis::Early);
+    calculate_slack(timing_graph, sta_state, Analysis::Early);
 }
 
 auto calculate_slack_full_pass_late(TimingGraph& timing_graph, STAState& sta_state) -> void
@@ -111,6 +123,7 @@ auto calculate_slack_full_pass_late(TimingGraph& timing_graph, STAState& sta_sta
 auto calculate_AAT(TimingGraph& timing_graph, STAState& sta_state, Analysis mode) -> void
 {
     auto num_levels = timing_graph.get_number_of_topological_levels();
+    float pin_AAT;
     for (auto i = 0u; i < num_levels; i++)
     {
         auto pins_in_level = timing_graph.find_pins_in_level(i);
@@ -124,7 +137,16 @@ auto calculate_AAT(TimingGraph& timing_graph, STAState& sta_state, Analysis mode
         for (auto pin : pins_in_level)
         {
             auto fanin_arcs = timing_graph.get_fanin_arcs(pin);
-            float pin_AAT;
+
+            if (mode == Analysis::Late)
+            {
+                pin_AAT = NEG_INF;
+            }
+            else if (mode == Analysis::Early)
+            {
+                pin_AAT = POS_INF;
+            }
+
             if (fanin_arcs.empty())
             {
                 pin_AAT = 0;
@@ -156,6 +178,7 @@ auto calculate_AAT(TimingGraph& timing_graph, STAState& sta_state, Analysis mode
 auto calculate_RAT(TimingGraph& timing_graph, STAState& sta_state, Analysis mode) -> void
 {
     auto num_levels = timing_graph.get_number_of_topological_levels();
+    float pin_RAT;
     // Calculate RAT
     for (auto i = num_levels - 1u; i < num_levels; i--)
     {
@@ -163,7 +186,15 @@ auto calculate_RAT(TimingGraph& timing_graph, STAState& sta_state, Analysis mode
         for (auto pin : pins_in_level)
         {
             auto fanout_arcs = timing_graph.get_fanout_arcs(pin);
-            float pin_RAT;
+
+            if (mode == Analysis::Late)
+            {
+                pin_RAT = POS_INF;
+            }
+            else if (mode == Analysis::Early)
+            {
+                pin_RAT = NEG_INF;
+            }
             if (fanout_arcs.empty())
             {
                 pin_RAT = sta_state.circuit_RAT;
@@ -194,19 +225,23 @@ auto calculate_RAT(TimingGraph& timing_graph, STAState& sta_state, Analysis mode
 auto calculate_slack(TimingGraph& timing_graph, STAState& sta_state, Analysis mode) -> void
 {
     auto num_pins = timing_graph.get_number_of_pins();
+    sta_state.wns = POS_INF;
     for (PinID pin_id=0; pin_id < num_pins; pin_id++)
     {
         auto pin_RAT = sta_state.required_arrival_times[pin_id];
         auto pin_AAT = sta_state.actual_arrival_times[pin_id];
+
         if (mode == Analysis::Late)
         {
             auto pin_slack = pin_RAT - pin_AAT;
             sta_state.slack[pin_id] = pin_slack;
+            sta_state.wns = std::min(sta_state.wns, pin_slack);
         }
         else if (mode == Analysis::Early)
         {
             auto pin_slack = pin_AAT - pin_RAT;
             sta_state.slack[pin_id] = pin_slack;
+            sta_state.wns = std::min(sta_state.wns, pin_slack);
         }
     }
 }
@@ -232,7 +267,7 @@ auto calculate_incremental_AAT(TimingGraph& timing_graph, STAState& sta_state, A
 {
     CompareLevels comparison(timing_graph.get_pin_to_level_map());
     std::priority_queue<PinID, std::vector<PinID>, CompareLevels> dirty_pins(comparison);
-
+    float pin_AAT;
     for (auto i=0u; i < arc_data.arcs.size(); i++)
     {
         auto late_delay = arc_data.late_delays[i];
@@ -251,7 +286,15 @@ auto calculate_incremental_AAT(TimingGraph& timing_graph, STAState& sta_state, A
         dirty_pins.pop();
         auto fanout_arcs = timing_graph.get_fanout_arcs(pin);
         auto fanin_arcs = timing_graph.get_fanin_arcs(pin);
-        float pin_AAT;
+
+        if (mode == Analysis::Late)
+        {
+            pin_AAT = NEG_INF;
+        }
+        else if (mode == Analysis::Early)
+        {
+            pin_AAT = POS_INF;
+        }
         if (fanin_arcs.empty())
         {
             pin_AAT = 0;
@@ -310,6 +353,7 @@ auto calculate_incremental_RAT(TimingGraph& timing_graph, STAState& sta_state, A
 {
     CompareLevels comparison(timing_graph.get_pin_to_level_map());
     std::priority_queue<PinID, std::vector<PinID>, CompareLevels> dirty_pins(comparison);
+    float pin_RAT;
 
     for (auto i=0u; i < arc_data.arcs.size(); i++)
     {
@@ -329,7 +373,14 @@ auto calculate_incremental_RAT(TimingGraph& timing_graph, STAState& sta_state, A
         dirty_pins.pop();
         auto fanout_arcs = timing_graph.get_fanout_arcs(pin);
         auto fanin_arcs = timing_graph.get_fanin_arcs(pin);
-        float pin_RAT;
+        if (mode == Analysis::Late)
+        {
+            pin_RAT = POS_INF;
+        }
+        else if (mode == Analysis::Early)
+        {
+            pin_RAT = NEG_INF;
+        }
         if (fanin_arcs.empty())
         {
             pin_RAT = sta_state.circuit_RAT;

@@ -4,7 +4,12 @@
 
 #ifndef STA_ENGINE_STANALYZER_H
 #define STA_ENGINE_STANALYZER_H
+
+#include <limits>
 #include "TimingGraph.h"
+
+inline constexpr float NEG_INF = -std::numeric_limits<float>::infinity();
+inline constexpr float POS_INF = std::numeric_limits<float>::infinity();
 
 enum class STAMode : uint8_t
 {
@@ -26,7 +31,8 @@ struct STAState
    std::vector<float> required_arrival_times;
    std::vector<float> slack;
 
-   float circuit_RAT;
+   float circuit_RAT; // constraint set by user
+   float wns; // worst-case negative slack
 };
 
 struct ArcUpdates
