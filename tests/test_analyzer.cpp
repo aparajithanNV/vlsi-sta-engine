@@ -14,6 +14,7 @@ namespace
     protected:
         TimingGraph timing_graph;
         STAState sta_state;
+        ArcUpdates arc_data;
 
         void SetUp() override
         {
@@ -77,6 +78,10 @@ namespace
             sta_state.actual_arrival_times = std::vector<float>(num_pins, 0.0);
             sta_state.required_arrival_times = std::vector<float>(num_pins, 0.0);
             sta_state.slack = std::vector<float>(num_pins, 0.0);
+
+            arc_data.arcs = {7};
+            arc_data.early_delays = {0.8};
+            arc_data.late_delays = {1.3};
         }
     };
 
@@ -122,6 +127,23 @@ namespace
         // calculate_slack(timing_graph, Mode::FullPassLate)
         // timing_graph.set_arc_delay(id, early_delay, late_delay);
         // auto incremental_slack = calculate_slack(timing_graph, Mode::IncrementalLate);
+
+        STAState baseline_state=sta_state, incremental_state, golden_batch_state=sta_state;
+
+        calculate_slack_full_pass_late(timing_graph, baseline_state);
+        incremental_state = baseline_state;
+        // calculate_slack_incremental_late(timing_graph, incremental_state, arc_data);
+        calculate_incremental_AAT(timing_graph, incremental_state, arc_data, Analysis::Late);
+        calculate_incremental_RAT(timing_graph, incremental_state, arc_data, Analysis::Late);
+        timing_graph.set_arc_delay(arc_data.arcs[0], arc_data.early_delays[0], arc_data.late_delays[0]);
+        calculate_slack_full_pass_late(timing_graph, golden_batch_state);
+        auto num_pins = timing_graph.get_number_of_pins();
+        for (PinID i = 0; i < num_pins; i++)
+        {
+            ASSERT_NEAR(incremental_state.actual_arrival_times[i], golden_batch_state.actual_arrival_times[i], 1e-5) << "Mismatch at pin "<< i;
+            ASSERT_NEAR(incremental_state.required_arrival_times[i], golden_batch_state.required_arrival_times[i], 1e-5) << "Mismatch at pin "<< i;
+            ASSERT_NEAR(incremental_state.slack[i], golden_batch_state.slack[i], 1e-5) << "Mismatch at pin "<< i;
+        }
     }
 
     TEST_F(TimingAnalyzerTest, IncrementalEarlyMode)
@@ -131,5 +153,21 @@ namespace
         // calculate_slack(timing_graph, Mode::FullPassEarly);
         // timing_graph.set_arc_delay(id, early_delay, late_delay);
         // auto early_incremental_slack = calculate_slack(timing_graph, Mode::IncrementalEarly)
+        STAState baseline_state=sta_state, incremental_state, golden_batch_state=sta_state;
+
+        calculate_slack_full_pass_early(timing_graph, baseline_state);
+        incremental_state = baseline_state;
+        // calculate_slack_incremental_early(timing_graph, incremental_state, arc_data);
+        calculate_incremental_AAT(timing_graph, incremental_state, arc_data, Analysis::Early);
+        calculate_incremental_RAT(timing_graph, incremental_state, arc_data, Analysis::Early);
+        timing_graph.set_arc_delay(arc_data.arcs[0], arc_data.early_delays[0], arc_data.late_delays[0]);
+        calculate_slack_full_pass_early(timing_graph, golden_batch_state);
+        auto num_pins = timing_graph.get_number_of_pins();
+        for (PinID i = 0; i < num_pins; i++)
+        {
+            ASSERT_NEAR(incremental_state.actual_arrival_times[i], golden_batch_state.actual_arrival_times[i], 1e-5);
+            ASSERT_NEAR(incremental_state.required_arrival_times[i], golden_batch_state.required_arrival_times[i], 1e-5);
+            ASSERT_NEAR(incremental_state.slack[i], golden_batch_state.slack[i], 1e-5);
+        }
     }
 }

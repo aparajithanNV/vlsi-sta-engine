@@ -212,6 +212,7 @@ auto TimingGraph::get_number_of_topological_levels() const noexcept -> uint32_t
     return static_cast<uint32_t>(topological_levels_offsets.size() - 1);
 }
 
+// TODO: Return a span not a temporary value
 auto TimingGraph::get_pin_to_level_map() const noexcept -> std::vector<uint32_t>
 {
     return pin_to_levels_map;

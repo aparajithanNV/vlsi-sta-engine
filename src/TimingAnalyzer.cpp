@@ -7,6 +7,8 @@
 #include <queue>
 #include <cmath>
 #include <limits>
+#include <cstdint>
+
 
 auto analyze(TimingGraph& timing_graph, STAMode sta_mode, STAState& sta_state, ArcUpdates& arc_data) -> bool
 {
@@ -254,7 +256,8 @@ auto calculate_slack(TimingGraph& timing_graph, STAState& sta_state, Analysis mo
  */
 struct CompareLevels
 {
-    const std::vector<uint32_t>& levels_map;
+    // TODO: Convert to span
+    const std::vector<uint32_t> levels_map;
 
     CompareLevels(const std::vector<uint32_t>& levels_map) : levels_map(levels_map) {}
     bool operator()(const uint32_t a, const uint32_t b) const
@@ -317,21 +320,22 @@ auto calculate_incremental_AAT(TimingGraph& timing_graph, STAState& sta_state, A
             }
         }
         auto original_pin_AAT = sta_state.actual_arrival_times[pin];
-        if (mode == Analysis::Late)
-        {
-            auto pin_RAT = sta_state.required_arrival_times[pin];
-            auto late_slack = pin_RAT - pin_AAT;
-            sta_state.slack[pin] = late_slack;
-        }
-        else if (mode == Analysis::Early)
-        {
-            auto pin_RAT = sta_state.required_arrival_times[pin];
-            auto early_slack = pin_AAT - pin_RAT;
-            sta_state.slack[pin] = early_slack;
-        }
+
         if (std::abs(original_pin_AAT - pin_AAT) > 1e-5f)
         {
             sta_state.actual_arrival_times[pin] = pin_AAT;
+            if (mode == Analysis::Late)
+            {
+                auto pin_RAT = sta_state.required_arrival_times[pin];
+                auto late_slack = pin_RAT - pin_AAT;
+                sta_state.slack[pin] = late_slack;
+            }
+            else if (mode == Analysis::Early)
+            {
+                auto pin_RAT = sta_state.required_arrival_times[pin];
+                auto early_slack = pin_AAT - pin_RAT;
+                sta_state.slack[pin] = early_slack;
+            }
             for (auto arc : fanout_arcs)
             {
                 auto dest_pin = timing_graph.get_destination_pin(arc);
@@ -362,9 +366,9 @@ auto calculate_incremental_RAT(TimingGraph& timing_graph, STAState& sta_state, A
         auto arc = arc_data.arcs[i];
         timing_graph.set_arc_delay(arc, early_delay, late_delay);
         // auto src = timing_graph.get_source_pin(arc);
-        auto dst = timing_graph.get_destination_pin(arc);
+        auto src = timing_graph.get_source_pin(arc);
         // dirty_pins.push(src);
-        dirty_pins.push(dst);
+        dirty_pins.push(src);
     }
 
     while (!dirty_pins.empty())
@@ -381,14 +385,14 @@ auto calculate_incremental_RAT(TimingGraph& timing_graph, STAState& sta_state, A
         {
             pin_RAT = NEG_INF;
         }
-        if (fanin_arcs.empty())
+        if (fanout_arcs.empty())
         {
             pin_RAT = sta_state.circuit_RAT;
         }
         for (auto arc : fanout_arcs)
         {
             auto dst_pin = timing_graph.get_destination_pin(arc);
-            auto RAT_dst = sta_state.actual_arrival_times[dst_pin];
+            auto RAT_dst = sta_state.required_arrival_times[dst_pin];
             if (mode == Analysis::Late)
             {
                 auto arc_delay = timing_graph.get_late_delay(arc);
@@ -403,20 +407,20 @@ auto calculate_incremental_RAT(TimingGraph& timing_graph, STAState& sta_state, A
             }
         }
         auto original_pin_RAT = sta_state.required_arrival_times[pin];
-        if (mode == Analysis::Late)
-        {
-            auto pin_AAT = sta_state.actual_arrival_times[pin];
-            auto late_slack = pin_RAT - pin_AAT;
-            sta_state.slack[pin] = late_slack;
-        }
-        else if (mode == Analysis::Early)
-        {
-            auto pin_AAT = sta_state.actual_arrival_times[pin];
-            auto early_slack = pin_AAT - pin_RAT;
-            sta_state.slack[pin] = early_slack;
-        }
         if (std::abs(original_pin_RAT - pin_RAT) > 1e-5f)
         {
+            if (mode == Analysis::Late)
+            {
+                auto pin_AAT = sta_state.actual_arrival_times[pin];
+                auto late_slack = pin_RAT - pin_AAT;
+                sta_state.slack[pin] = late_slack;
+            }
+            else if (mode == Analysis::Early)
+            {
+                auto pin_AAT = sta_state.actual_arrival_times[pin];
+                auto early_slack = pin_AAT - pin_RAT;
+                sta_state.slack[pin] = early_slack;
+            }
             sta_state.required_arrival_times[pin] = pin_RAT;
             for (auto arc : fanin_arcs)
             {
