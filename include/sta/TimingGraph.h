@@ -55,7 +55,7 @@ class TimingGraph
     [[nodiscard]] auto get_number_of_arcs() const noexcept-> uint32_t;
     auto update_input_pins(PinID pin_id) -> void;
     auto populate_pin_neighbors() -> void;
-    [[nodiscard]] auto get_pin_to_level_map() const noexcept -> std::vector<uint32_t>;
+    [[nodiscard]] auto get_pin_to_level_map() const noexcept -> std::span<const uint32_t>;
     private:
     /*
      * We need a CSR for forward and backward traversal

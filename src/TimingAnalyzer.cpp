@@ -257,9 +257,9 @@ auto calculate_slack(TimingGraph& timing_graph, STAState& sta_state, Analysis mo
 struct CompareLevels
 {
     // TODO: Convert to span
-    const std::vector<uint32_t> levels_map;
+    const std::span<const uint32_t> levels_map;
 
-    CompareLevels(const std::vector<uint32_t>& levels_map) : levels_map(levels_map) {}
+    CompareLevels(const std::span<const uint32_t>& levels_map) : levels_map(levels_map) {}
     bool operator()(const uint32_t a, const uint32_t b) const
     {
         return levels_map[a] > levels_map[b];
