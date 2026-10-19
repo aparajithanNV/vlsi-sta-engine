@@ -254,22 +254,31 @@ auto calculate_slack(TimingGraph& timing_graph, STAState& sta_state, Analysis mo
  * get the dst pins of each arc, add them to a queue
  * for each pin, find predecessor arcs, find AAT for the pin, if change is over threshold add successor pins to queue
  */
-struct CompareLevels
+struct CompareLevelsMin
 {
-    // TODO: Convert to span
     const std::span<const uint32_t> levels_map;
 
-    CompareLevels(const std::span<const uint32_t>& levels_map) : levels_map(levels_map) {}
+    CompareLevelsMin(const std::span<const uint32_t>& levels_map) : levels_map(levels_map) {}
     bool operator()(const uint32_t a, const uint32_t b) const
     {
         return levels_map[a] > levels_map[b];
     }
 };
 
+struct CompareLevelsMax
+{
+    const std::span<const uint32_t> levels_map;
+    CompareLevelsMax(const std::span<const uint32_t>& levels_map) : levels_map(levels_map) {}
+    bool operator()(const uint32_t a, const uint32_t b) const
+    {
+        return levels_map[a] < levels_map[b];
+    }
+};
+
 auto calculate_incremental_AAT(TimingGraph& timing_graph, STAState& sta_state, ArcUpdates& arc_data, Analysis mode) -> void
 {
-    CompareLevels comparison(timing_graph.get_pin_to_level_map());
-    std::priority_queue<PinID, std::vector<PinID>, CompareLevels> dirty_pins(comparison);
+    CompareLevelsMin comparison(timing_graph.get_pin_to_level_map());
+    std::priority_queue<PinID, std::vector<PinID>, CompareLevelsMin> dirty_pins(comparison);
     float pin_AAT;
     for (auto i=0u; i < arc_data.arcs.size(); i++)
     {
@@ -355,8 +364,8 @@ auto calculate_incremental_AAT(TimingGraph& timing_graph, STAState& sta_state, A
 
 auto calculate_incremental_RAT(TimingGraph& timing_graph, STAState& sta_state, ArcUpdates& arc_data, Analysis mode) -> void
 {
-    CompareLevels comparison(timing_graph.get_pin_to_level_map());
-    std::priority_queue<PinID, std::vector<PinID>, CompareLevels> dirty_pins(comparison);
+    CompareLevelsMax comparison(timing_graph.get_pin_to_level_map());
+    std::priority_queue<PinID, std::vector<PinID>, CompareLevelsMax> dirty_pins(comparison);
     float pin_RAT;
 
     for (auto i=0u; i < arc_data.arcs.size(); i++)

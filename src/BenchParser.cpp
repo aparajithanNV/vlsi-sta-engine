@@ -11,7 +11,7 @@
 #include <string>
 #include <cctype>
 
-auto BenchParser::parse_bench(std::istream& is, TimingGraph& timing_graph) -> bool
+auto BenchParser::parse_bench(std::istream& is, TimingGraph& timing_graph) -> int
 {
     std::string line;
     std::unordered_map<std::string, std::vector<PinID>> net_destinations;
@@ -23,8 +23,6 @@ auto BenchParser::parse_bench(std::istream& is, TimingGraph& timing_graph) -> bo
         {
             line.pop_back();
         }
-        std::cout << line <<"\n";
-        std::cout.flush();
         std::string_view view{line};
         if (view.starts_with('#') || view == "")
         {
@@ -41,19 +39,18 @@ auto BenchParser::parse_bench(std::istream& is, TimingGraph& timing_graph) -> bo
                 auto net_id = static_cast<std::string>(view.substr(start + 1, end - 1 - start));
                 if (net_id.empty())
                 {
-                    return true;
+                    return 1;
                 }
                 else
                 {
                     auto valid_id = std::all_of(net_id.begin(), net_id.end(), [](unsigned char c){return std::isdigit(c);});
                     if (!valid_id)
                     {
-                        return true;
+                        return 1;
                     }
                 }
                 auto new_pin_id = timing_graph.add_pin(PinType::PI);
                 net_sources[net_id] = new_pin_id;
-                std::cout << "INPUT " << "net " << net_id << " new pin id: "<< new_pin_id << "\n";
                 timing_graph.update_input_pins(new_pin_id);
             }
         }
@@ -66,19 +63,18 @@ auto BenchParser::parse_bench(std::istream& is, TimingGraph& timing_graph) -> bo
                 auto net_id = static_cast<std::string>(view.substr(start + 1, end - 1 - start));
                 if (net_id.empty())
                 {
-                    return true;
+                    return 1;
                 }
                 else
                 {
                     auto valid_id = std::all_of(net_id.begin(), net_id.end(), [](unsigned char c){return std::isdigit(c);});
                     if (!valid_id)
                     {
-                        return true;
+                        return 1;
                     }
                 }
                 auto new_pin_id = timing_graph.add_pin(PinType::PO);
                 net_destinations[net_id].emplace_back(new_pin_id);
-                std::cout << "OUTPUT " << "net " << net_id << " new pin id "<< new_pin_id << "\n";
             }
         }
         else
@@ -95,7 +91,7 @@ auto BenchParser::parse_bench(std::istream& is, TimingGraph& timing_graph) -> bo
             }
             if (gate_name.empty())
             {
-                return true;
+                return 1;
             }
             else if (gate_name == "INV")
             {
@@ -134,7 +130,7 @@ auto BenchParser::parse_bench(std::istream& is, TimingGraph& timing_graph) -> bo
             }
             else
             {
-                return true;
+                return 1;
             }
 
             std::string A_net, B_net;
@@ -147,13 +143,13 @@ auto BenchParser::parse_bench(std::istream& is, TimingGraph& timing_graph) -> bo
 
             if (A_net.empty() || Y_net.empty())
             {
-                return true;
+                return 1;
             }
             else
             {
                 if (gate_name != "INV" && B_net.empty())
                 {
-                   return true;
+                   return 1;
                 }
             }
             auto valid_id_A = std::all_of(A_net.begin(), A_net.end(), [](unsigned char c){return std::isdigit(c);});
@@ -162,17 +158,15 @@ auto BenchParser::parse_bench(std::istream& is, TimingGraph& timing_graph) -> bo
 
             if (!valid_id_A || !valid_id_Y)
             {
-                return true;
+                return 1;
             }
             else
             {
                 if (gate_name != "INV" && !valid_id_B)
                 {
-                    return true;
+                    return 1;
                 }
             }
-
-            std::cout << "Driven net " << Y_net << " Gate " << gate_name << " Anet " << A_net << " B net " << B_net << "\n";
 
             auto new_A_pin = timing_graph.add_pin(PinType::INTERNAL);
             auto new_Y_pin = timing_graph.add_pin(PinType::INTERNAL);
@@ -202,5 +196,5 @@ auto BenchParser::parse_bench(std::istream& is, TimingGraph& timing_graph) -> bo
         }
     }
 
-    return false;
+    return 0;
 }

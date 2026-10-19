@@ -16,7 +16,7 @@ class BenchParser
     /* istream is not copyable, must take it as input parameter.
      * Parser should be stateless, should take in the timing graph too as input parameter
     */
-    auto parse_bench(std::istream &is, TimingGraph &timing_graph) -> bool;
+    auto parse_bench(std::istream &is, TimingGraph &timing_graph) -> int;
 };
 
 #endif //STA_ENGINE_BENCHPARSER_H

@@ -26,7 +26,7 @@ auto TimingGraph::add_arc(PinID pin_1, PinID pin_2, ArcType arc_type, float earl
     arc_destination_pins.emplace_back(pin_2);
     arc_early_delays.emplace_back(early_delay);
     arc_late_delays.emplace_back(late_delay);
-    auto new_arc_id = static_cast<uint32_t>(arc_types.size());
+    auto new_arc_id = static_cast<uint32_t>(arc_types.size() - 1);
     return new_arc_id;
 }
 
@@ -119,6 +119,10 @@ auto TimingGraph::update_input_pins(PinID pin_id) -> void
 
 auto TimingGraph::find_topological_levels() -> bool
 {
+    pin_indegrees.clear();
+    topological_levels.clear();
+    topological_levels_offsets.clear();
+    pin_to_levels_map.clear();
     std::queue<uint32_t> start_pins;
     for (PinID pin_id=0; pin_id < get_number_of_pins(); pin_id++)
     {
@@ -212,7 +216,6 @@ auto TimingGraph::get_number_of_topological_levels() const noexcept -> uint32_t
     return static_cast<uint32_t>(topological_levels_offsets.size() - 1);
 }
 
-// TODO: Return a span not a temporary value
 auto TimingGraph::get_pin_to_level_map() const noexcept -> std::span<const uint32_t>
 {
     auto start = 0u;

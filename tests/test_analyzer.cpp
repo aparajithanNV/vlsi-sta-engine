@@ -117,7 +117,7 @@ namespace
         }
         ASSERT_NEAR(sta_state.wns, -1.0, 1e-5);
     }
-
+    
     TEST_F(TimingAnalyzerTest, IncrementalLateMode)
     {
         // Calculate Full pass slack with an arc delay set to a different value from original
