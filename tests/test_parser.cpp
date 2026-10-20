@@ -30,7 +30,7 @@ INPUT(1)
 
 OUTPUT(2)
 
-2 = INV(1)
+2 = NOT(1)
 )";
     std::stringstream circuit_stream(circuit);
     auto parse_success = parser.parse_bench(circuit_stream, timing_graph);
@@ -75,7 +75,7 @@ INPUT(3)
 
 OUTPUT(7)
 
-4 = INV(2)
+4 = NOT(2)
 5 = AND(1, 4)
 6 = OR(4, 3)
 7 = AND(5, 6)
@@ -175,4 +175,25 @@ OUTPUT(3)
     auto parse_success = parser.parse_bench(circuit_stream, timing_graph);
 
     ASSERT_EQ(parse_success, 1);
+}
+
+TEST(ParserTest, MultiInputGate)
+{
+    BenchParser parser;
+    TimingGraph timing_graph;
+    std::string circuit = R"(
+INPUT(1)
+INPUT(2)
+INPUT(3)
+INPUT(4)
+
+OUTPUT(5)
+
+5 = NAND(1, 2, 3, 4)
+)";
+    std::stringstream circuit_stream(circuit);
+    auto parse_success = parser.parse_bench(circuit_stream, timing_graph);
+    ASSERT_EQ(parse_success, 0);
+    ASSERT_EQ(timing_graph.get_number_of_pins(), 10);
+    ASSERT_EQ(timing_graph.get_number_of_arcs(), 9);
 }

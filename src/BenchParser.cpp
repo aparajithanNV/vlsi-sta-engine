@@ -11,6 +11,137 @@
 #include <string>
 #include <cctype>
 
+auto is_valid_net = [](std::string_view s) -> bool {
+    return !s.empty() && std::all_of(s.begin(), s.end(), [](unsigned char c) {
+        return std::isdigit(c);
+    });
+};
+
+auto BenchParser::parse_input(std::string_view line, TimingGraph &timing_graph, std::unordered_map<std::string, PinID>& net_sources) -> int
+{
+    // auto trim = [](std::string_view& s)
+    // {
+    //     while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front()))) s.remove_prefix(1);
+    //     while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) s.remove_suffix(1);
+    // };
+    auto start = line.find('(');
+    auto end = line.find(')');
+    if (start < end && start != line.npos && end != line.npos)
+    {
+        auto net_id = static_cast<std::string>(line.substr(start + 1, end - 1 - start));
+        if (net_id.empty())
+        {
+            return 1;
+        }
+        else
+        {
+            // auto valid_id = std::all_of(net_id.begin(), net_id.end(), [](unsigned char c){return std::isdigit(c);});
+            auto valid_id = is_valid_net(net_id);
+            if (!valid_id)
+            {
+                return 1;
+            }
+        }
+        auto new_pin_id = timing_graph.add_pin(PinType::PI);
+        net_sources[net_id] = new_pin_id;
+        timing_graph.update_input_pins(new_pin_id);
+    }
+    return 0;
+}
+
+auto BenchParser::parse_output(std::string_view line, TimingGraph &timing_graph, std::unordered_map<std::string, std::vector<PinID>>& net_destinations) -> int
+{
+    // auto trim = [](std::string_view& s)
+    // {
+    //     while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front()))) s.remove_prefix(1);
+    //     while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) s.remove_suffix(1);
+    // };
+    auto start = line.find('(');
+    auto end = line.find(')');
+    if (start < end && start != line.npos && end != line.npos)
+    {
+        auto net_id = static_cast<std::string>(line.substr(start + 1, end - 1 - start));
+        if (net_id.empty())
+        {
+            return 1;
+        }
+        else
+        {
+            // auto valid_id = std::all_of(net_id.begin(), net_id.end(), [](unsigned char c){return std::isdigit(c);});
+            auto valid_id = is_valid_net(net_id);
+            if (!valid_id)
+            {
+                return 1;
+            }
+        }
+        auto new_pin_id = timing_graph.add_pin(PinType::PO);
+        net_destinations[net_id].emplace_back(new_pin_id);
+    }
+    return 0;
+}
+
+auto BenchParser::parse_gate(std::string_view line, TimingGraph &timing_graph, std::unordered_map<std::string,PinID>& net_sources,
+    std::unordered_map<std::string, std::vector<PinID>>& net_destinations) -> int
+{
+    auto trim = [](std::string_view& s)
+    {
+        while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front()))) s.remove_prefix(1);
+        while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) s.remove_suffix(1);
+    };
+    auto equals_loc = line.find('=');
+    auto LHS = line.substr(0, equals_loc);
+    trim(LHS);
+    auto status_0 = is_valid_net(LHS);
+    if (!status_0){return 1;}
+    auto Y_pin = timing_graph.add_pin(PinType::INTERNAL);
+    net_sources[static_cast<std::string>(LHS)] = Y_pin;
+    auto first_parenthesis = line.find('(');
+    auto second_parenthesis = line.find(')');
+    auto gate_name = line.substr(equals_loc + 1, first_parenthesis - equals_loc - 1);
+    trim(gate_name);
+    float early_delay, late_delay;
+    if (gate_name == "NOT" || gate_name == "INV" || gate_name == "BUF" || gate_name == "BUFF")
+    {
+        early_delay = 1;
+        late_delay = 1;
+    }
+    else if (gate_name == "AND" || gate_name == "NAND" || gate_name == "OR" || gate_name == "NOR" || gate_name == "XOR" || gate_name == "XNOR")
+    {
+        early_delay = 2;
+        late_delay = 2;
+    }
+    else
+    {
+        return 1;
+    }
+    auto gate_inputs = line.substr(first_parenthesis + 1, second_parenthesis - first_parenthesis - 1);
+    size_t start = 0;
+    bool has_more_inputs = true;
+    while (has_more_inputs)
+    {
+        auto next = gate_inputs.find(',');
+        auto net_id = gate_inputs.substr(start, next - start);
+        trim(net_id);
+        auto status_1 = is_valid_net(net_id);
+        if (!status_1)
+        {
+            return 1;
+        }
+        auto in_pin = timing_graph.add_pin(PinType::INTERNAL);
+        net_destinations[static_cast<std::string>(net_id)].emplace_back(in_pin);
+        timing_graph.add_arc(in_pin, Y_pin, ArcType::GATE, early_delay, late_delay);
+        if (next == gate_inputs.npos)
+        {
+            has_more_inputs = false;
+            break;
+        }
+        gate_inputs = gate_inputs.substr(next + 1, line.size() - next - 1);
+        trim(gate_inputs);
+        start = 0;
+    }
+    return 0;
+}
+
 auto BenchParser::parse_bench(std::istream& is, TimingGraph& timing_graph) -> int
 {
     std::string line;
@@ -23,163 +154,29 @@ auto BenchParser::parse_bench(std::istream& is, TimingGraph& timing_graph) -> in
         {
             line.pop_back();
         }
-        std::string_view view{line};
-        if (view.starts_with('#') || view == "")
+        std::string_view line_view{line};
+        if (line_view.starts_with('#') || line_view == "")
         {
             continue;
         }
         // auto print_view = static_cast<std::string>(view);
         // std::cout << print_view << std::endl;
-        if (view.starts_with("INPUT"))
+        if (line_view.starts_with("INPUT"))
         {
-            auto start = view.find('(');
-            auto end = view.find(')');
-            if (start < end && start != view.npos && end != view.npos)
-            {
-                auto net_id = static_cast<std::string>(view.substr(start + 1, end - 1 - start));
-                if (net_id.empty())
-                {
-                    return 1;
-                }
-                else
-                {
-                    auto valid_id = std::all_of(net_id.begin(), net_id.end(), [](unsigned char c){return std::isdigit(c);});
-                    if (!valid_id)
-                    {
-                        return 1;
-                    }
-                }
-                auto new_pin_id = timing_graph.add_pin(PinType::PI);
-                net_sources[net_id] = new_pin_id;
-                timing_graph.update_input_pins(new_pin_id);
-            }
+            auto status = parse_input(line_view, timing_graph, net_sources);
+            if (status == 1){return 1;}
         }
-        else if (view.starts_with("OUTPUT"))
+        else if (line_view.starts_with("OUTPUT"))
         {
-            auto start = view.find('(');
-            auto end = view.find(')');
-            if (start < end && start != view.npos && end != view.npos)
-            {
-                auto net_id = static_cast<std::string>(view.substr(start + 1, end - 1 - start));
-                if (net_id.empty())
-                {
-                    return 1;
-                }
-                else
-                {
-                    auto valid_id = std::all_of(net_id.begin(), net_id.end(), [](unsigned char c){return std::isdigit(c);});
-                    if (!valid_id)
-                    {
-                        return 1;
-                    }
-                }
-                auto new_pin_id = timing_graph.add_pin(PinType::PO);
-                net_destinations[net_id].emplace_back(new_pin_id);
-            }
+            auto status = parse_output(line_view, timing_graph, net_destinations);
+            if (status == 1){return 1;}
         }
         else
         {
-            std::istringstream line_stream(line);
-            std::string Y_net, equal_sign;
-            line_stream >> Y_net >> equal_sign;
-            char gate_ch;
-            std::string gate_name;
-            float gate_early_delay, gate_late_delay;
-            while (line_stream >> gate_ch && gate_ch != '(')
-            {
-                gate_name += gate_ch;
-            }
-            if (gate_name.empty())
+            auto status = parse_gate(line_view, timing_graph, net_sources, net_destinations);
+            if (status == 1)
             {
                 return 1;
-            }
-            else if (gate_name == "INV")
-            {
-                gate_early_delay = 1;
-                gate_late_delay = 1;
-            }
-            else if (gate_name == "AND")
-            {
-                gate_early_delay = 2;
-                gate_late_delay = 2;
-            }
-            else if (gate_name == "OR")
-            {
-                gate_early_delay = 2;
-                gate_late_delay = 2;
-            }
-            else if (gate_name == "XOR")
-            {
-                gate_early_delay = 2;
-                gate_late_delay = 2;
-            }
-            else if (gate_name == "NAND")
-            {
-                gate_early_delay = 2;
-                gate_late_delay = 2;
-            }
-            else if (gate_name == "NOR")
-            {
-                gate_early_delay = 2;
-                gate_late_delay = 2;
-            }
-            else if (gate_name == "XNOR")
-            {
-                gate_early_delay = 2;
-                gate_late_delay = 2;
-            }
-            else
-            {
-                return 1;
-            }
-
-            std::string A_net, B_net;
-            line_stream >> A_net >> B_net;
-            A_net.pop_back();
-            if (!B_net.empty())
-            {
-                B_net.pop_back();
-            }
-
-            if (A_net.empty() || Y_net.empty())
-            {
-                return 1;
-            }
-            else
-            {
-                if (gate_name != "INV" && B_net.empty())
-                {
-                   return 1;
-                }
-            }
-            auto valid_id_A = std::all_of(A_net.begin(), A_net.end(), [](unsigned char c){return std::isdigit(c);});
-            auto valid_id_B = std::all_of(B_net.begin(), B_net.end(), [](unsigned char c){return std::isdigit(c);});
-            auto valid_id_Y = std::all_of(Y_net.begin(), Y_net.end(), [](unsigned char c){return std::isdigit(c);});
-
-            if (!valid_id_A || !valid_id_Y)
-            {
-                return 1;
-            }
-            else
-            {
-                if (gate_name != "INV" && !valid_id_B)
-                {
-                    return 1;
-                }
-            }
-
-            auto new_A_pin = timing_graph.add_pin(PinType::INTERNAL);
-            auto new_Y_pin = timing_graph.add_pin(PinType::INTERNAL);
-            timing_graph.add_arc(new_A_pin, new_Y_pin, ArcType::GATE,
-                gate_early_delay, gate_late_delay);
-            net_destinations[A_net].emplace_back(new_A_pin);
-            net_sources[Y_net] = new_Y_pin;
-            if (gate_name != "INV")
-            {
-                auto new_B_pin = timing_graph.add_pin(PinType::INTERNAL);
-                timing_graph.add_arc(new_B_pin, new_Y_pin, ArcType::GATE,
-                    gate_early_delay, gate_late_delay);
-                net_destinations[B_net].emplace_back(new_B_pin);
             }
         }
     }
@@ -198,3 +195,4 @@ auto BenchParser::parse_bench(std::istream& is, TimingGraph& timing_graph) -> in
 
     return 0;
 }
+
