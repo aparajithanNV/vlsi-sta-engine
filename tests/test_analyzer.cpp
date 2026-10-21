@@ -170,4 +170,19 @@ namespace
             ASSERT_NEAR(incremental_state.slack[i], golden_batch_state.slack[i], 1e-5);
         }
     }
+
+    TEST_F(TimingAnalyzerTest, FullPassLateParallel)
+    {
+        STAState golden_state=sta_state, parallel_state=sta_state;
+        tf::Executor executor;
+        calculate_slack_full_pass_late(timing_graph, golden_state);
+        calculate_slack_full_pass_parallel(timing_graph, parallel_state, Analysis::Late, executor);
+        auto num_pins = timing_graph.get_number_of_pins();
+        for (PinID i = 0; i < num_pins; i++)
+        {
+            ASSERT_NEAR(golden_state.actual_arrival_times[i], parallel_state.actual_arrival_times[i], 1e-5);
+            ASSERT_NEAR(golden_state.required_arrival_times[i], parallel_state.required_arrival_times[i], 1e-5);
+            ASSERT_NEAR(golden_state.slack[i], parallel_state.slack[i], 1e-5);
+        }
+    }
 }

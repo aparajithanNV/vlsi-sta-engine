@@ -43,22 +43,22 @@ auto TimingGraph::get_number_of_arcs() const noexcept -> uint32_t
 
 auto TimingGraph::get_destination_pin(ArcID arc_id) const -> PinID
 {
-    return arc_destination_pins.at(arc_id);
+    return arc_destination_pins[arc_id];
 }
 
 auto TimingGraph::get_source_pin(ArcID arc_id) const -> PinID
 {
-    return arc_source_pins.at(arc_id);
+    return arc_source_pins[arc_id];
 }
 
 auto TimingGraph::get_early_delay(ArcID arc_id) const -> float
 {
-    return arc_early_delays.at(arc_id);
+    return arc_early_delays[arc_id];
 }
 
 auto TimingGraph::get_late_delay(ArcID arc_id) const -> float
 {
-    return arc_late_delays.at(arc_id);
+    return arc_late_delays[arc_id];
 }
 
 auto TimingGraph::populate_pin_neighbors() -> void

@@ -439,3 +439,146 @@ auto calculate_incremental_RAT(TimingGraph& timing_graph, STAState& sta_state, A
         }
     }
 }
+
+
+auto build_AAT_tasks(tf::Taskflow& task_graph, TimingGraph& timing_graph, STAState& sta_state, Analysis mode) -> tf::Task
+{
+    auto num_levels = timing_graph.get_number_of_topological_levels();
+    tf::Task current_task, previous_task;
+    for (auto level=0u; level < num_levels; level++)
+    {
+        auto pins_in_level = timing_graph.find_pins_in_level(level);
+        current_task = task_graph.for_each(pins_in_level.begin(), pins_in_level.end(), [&](PinID pin)
+        {
+            float pin_AAT;
+            auto fanin_arcs = timing_graph.get_fanin_arcs(pin);
+            if (mode == Analysis::Late)
+            {
+                pin_AAT = NEG_INF;
+            }
+            else if (mode == Analysis::Early)
+            {
+                pin_AAT = POS_INF;
+            }
+            if (fanin_arcs.empty())
+            {
+                pin_AAT = 0;
+            }
+            for (auto arc : fanin_arcs)
+            {
+                auto source_pin = timing_graph.get_source_pin(arc);
+                auto AAT_src = sta_state.actual_arrival_times[source_pin];
+                if (mode == Analysis::Late)
+                {
+                    auto arc_delay = timing_graph.get_late_delay(arc);
+                    auto AAT = AAT_src + arc_delay;
+                    pin_AAT = std::max(pin_AAT, AAT);
+                }
+                else if (mode == Analysis::Early)
+                {
+                    auto arc_delay = timing_graph.get_early_delay(arc);
+                    auto AAT = AAT_src + arc_delay;
+                    pin_AAT = std::min(pin_AAT, AAT);
+                }
+            }
+            sta_state.actual_arrival_times[pin] = pin_AAT;
+        });
+        if (!previous_task.empty())
+        {
+            previous_task.precede(current_task);
+        }
+        previous_task = current_task;
+    }
+    return current_task;
+}
+
+auto build_RAT_tasks(tf::Taskflow& task_graph, TimingGraph& timing_graph, STAState& sta_state, Analysis mode) -> tf::Task
+{
+    auto num_levels = timing_graph.get_number_of_topological_levels();
+    tf::Task current_task, previous_task;
+    for (auto level=num_levels-1; ; level--)
+    {
+        auto pins_in_level = timing_graph.find_pins_in_level(level);
+        current_task = task_graph.for_each(pins_in_level.begin(), pins_in_level.end(), [&](PinID pin)
+        {
+            float pin_RAT;
+            auto fanout_arcs = timing_graph.get_fanout_arcs(pin);
+            if (mode == Analysis::Late)
+            {
+                pin_RAT = POS_INF;
+            }
+            else if (mode == Analysis::Early)
+            {
+                pin_RAT = NEG_INF;
+            }
+            if (fanout_arcs.empty())
+            {
+                pin_RAT = sta_state.circuit_RAT;
+            }
+            for (auto arc : fanout_arcs)
+            {
+                auto destination_pin = timing_graph.get_destination_pin(arc);
+                auto RAT_dst = sta_state.required_arrival_times[destination_pin];
+                if (mode == Analysis::Late)
+                {
+                    auto arc_delay = timing_graph.get_late_delay(arc);
+                    auto RAT = RAT_dst - arc_delay;
+                    pin_RAT = std::min(pin_RAT, RAT);
+                }
+                else if (mode == Analysis::Early)
+                {
+                    auto arc_delay = timing_graph.get_early_delay(arc);
+                    auto RAT = RAT_dst - arc_delay;
+                    pin_RAT = std::max(pin_RAT, RAT);
+                }
+            }
+            sta_state.required_arrival_times[pin] = pin_RAT;
+        });
+        if (!previous_task.empty())
+        {
+            previous_task.precede(current_task);
+        }
+        previous_task = current_task;
+        if (level == 0)
+        {
+            break;
+        }
+    }
+    return current_task;
+}
+
+auto build_slack_tasks(tf::Taskflow& task_graph, TimingGraph& timing_graph, STAState& sta_state, Analysis mode) -> tf::Task
+{
+    auto num_pins = timing_graph.get_number_of_pins();
+    auto task = task_graph.for_each_index(0u, num_pins, 1u, [&](PinID pin)
+    {
+        auto pin_RAT = sta_state.required_arrival_times[pin];
+        auto pin_AAT = sta_state.actual_arrival_times[pin];
+        if (mode == Analysis::Late)
+        {
+            auto pin_slack = pin_RAT - pin_AAT;
+            sta_state.slack[pin] = pin_slack;
+        }
+        else if (mode == Analysis::Early)
+        {
+            auto pin_slack = pin_AAT - pin_RAT;
+            sta_state.slack[pin] = pin_slack;
+        }
+    });
+    return task;
+}
+
+auto calculate_slack_full_pass_parallel(TimingGraph& timing_graph, STAState& sta_state, Analysis mode, tf::Executor& executor) -> void
+{
+    tf::Taskflow task_graph;
+    auto AAT_terminal_task = build_AAT_tasks(task_graph, timing_graph, sta_state, mode);
+    auto RAT_terminal_task = build_RAT_tasks(task_graph, timing_graph, sta_state, mode);
+    auto slack_task = build_slack_tasks(task_graph, timing_graph, sta_state, mode);
+
+    AAT_terminal_task.precede(slack_task);
+    RAT_terminal_task.precede(slack_task);
+
+    executor.run(task_graph).wait();
+    auto wns = *std::min_element(sta_state.slack.begin(), sta_state.slack.end());
+    sta_state.wns = wns;
+}

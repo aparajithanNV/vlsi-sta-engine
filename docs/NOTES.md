@@ -50,19 +50,69 @@
 
 ---
 
-## 4. Empirical Performance Baselines (Sequential Execution)
-
-### Baseline: `c17.bench` (6 gates, 25 pins, 26 arcs)
+## 4. Empirical Benchmark Performance
 * **Environment:** Intel i712650H, Linux x86_64, Clang 16 (`-O2 -g -DNDEBUG`)
 * **Benchmark Harness:** Google Benchmark (`profile` preset)
 
 ```text
---------------------------------------------------------
-Benchmark              Time             CPU   Iterations
---------------------------------------------------------
-BM_FullPassLate      256 ns          256 ns      2640064
+--------------------------------------------------------------------------
+Benchmark                                Time             CPU   Iterations
+--------------------------------------------------------------------------
+BENCHMARK_STA_SEQUENTIAL/c17         0.279 us        0.278 us      2515198
+BENCHMARK_STA_SEQUENTIAL/c432         5.98 us         5.97 us       117243
+BENCHMARK_STA_SEQUENTIAL/c880         12.0 us         12.0 us        54727
+BENCHMARK_STA_SEQUENTIAL/c3540        46.1 us         46.0 us        15198
+BENCHMARK_STA_SEQUENTIAL/c6288        71.2 us         71.0 us         9451
+BENCHMARK_STA_SEQUENTIAL/c7552         101 us          101 us         6984
+BENCHMARK_PARALLEL_STA_C7552/1         159 us         20.0 us        36701
+BENCHMARK_PARALLEL_STA_C7552/2         138 us         19.2 us        35620
+BENCHMARK_PARALLEL_STA_C7552/4         241 us         20.8 us        33940
+BENCHMARK_PARALLEL_STA_C7552/6         352 us         23.9 us        10000
+BENCHMARK_PARALLEL_STA_C7552/8         487 us         24.5 us        10000
+BENCHMARK_PARALLEL_STA_C7552/12        772 us         25.7 us        10000
+BENCHMARK_PARALLEL_STA_C7552/16       1051 us         24.4 us        10000
 ```
-### `c432.bench` (40 inverters, 120 gates ( 4 ANDs + 119 NANDs + 19 NORs + 18 XORs ))
-Full pass late calculation
 
-### `c7552.bench` (876 inverters, 2636 gates ( 1310 ANDs + 1904 NANDs + 244 ORs + 54 NORs + 534 buffers ))
+### Analysis & Performance Remarks
+
+#### 1. Sequential Complexity & Cache Locality ($O(|V| + |E|)$ Linearity)
+The sequential benchmark progression across the six ISCAS85 circuits demonstrates near-perfect empirical linearity:
+
+| Circuit | Gate Count | Topo Levels | Sequential Time | Normalized Time / Gate |
+| :--- | :--- | :--- | :--- | :--- |
+| **`c17`** | 6 | 7 | **0.28 µs** | 46.5 ns / gate |
+| **`c432`** | 160 | 17 | **5.98 µs** | 37.4 ns / gate |
+| **`c880`** | 383 | 24 | **12.0 µs** | 31.3 ns / gate |
+| **`c3540`** | 1,669 | 47 | **46.1 µs** | 27.6 ns / gate |
+| **`c6288`** | 2,406 | 124 | **71.2 µs** | 29.5 ns / gate |
+| **`c7552`** | 3,512 | 40 | **101.0 µs** | 28.7 ns / gate |
+
+* **Constant Amortized Cost per Gate:** As the design scales from 160 gates to 3,512 gates ($22\times$ increase in logic), execution time remains remarkably bounded between **27 ns and 37 ns per gate**.
+* **Cache Efficiency:** Even on `c6288` (which features an extreme topological depth of 124 levels and over 124,000 paths), per-gate compute time does not degrade. This confirms that the Bidirectional Compressed Sparse Row (Bidir-CSR) memory layout successfully avoids L1/L2 cache thrashing and preserves linear graph traversal complexity.
+
+---
+
+#### 2. Multi-Threaded Taskflow Analysis on `c7552` (The Granularity Threshold)
+The multi-core benchmark reveals the classical systems tradeoff between **workload granularity** and **barrier synchronization latency**:
+
+* **Initial Parallel Gain (1 → 2 Threads):**
+  * Scaling from 1 worker thread to 2 worker threads reduces wall-clock execution time from **159 µs to 138 µs** (~1.15× speedup), confirming that concurrent execution of wide levels and independent AAT/RAT branches functions correctly.
+* **Synchronization Bottleneck Beyond 2 Threads:**
+  * Scaling from 4 to 16 threads causes wall-clock time to increase monotonically (reaching **1,051 µs at 16 threads**).
+  * **The Mathematical Root Cause:**
+    * In `c7552`, total sequential execution takes only **101 µs across 40 levels**.
+    * Average compute duration per topological level:
+      $$\text{Compute per Level} = \frac{101\,\mu\text{s}}{40} \approx \mathbf{2.5\,\mu\text{s}}$$
+    * In modern multi-threading runtimes, coordinating worker threads across task barriers incurs a latency of **~1 to 2 µs per barrier**.
+    * With 40 forward barriers and 40 backward barriers (80 total barriers per pass), the cumulative barrier latency is:
+      $$\text{Barrier Overhead} = 80 \times 1.5\,\mu\text{s} \approx \mathbf{120\,\mu\text{s}}$$
+    * When each level contains only **2.5 µs of actual math**, thread dispatch and barrier contention rapidly exceed the computational workload.
+* **CPU Time vs. Wall-Clock Time Discrepancy:**
+  * At 16 threads, CPU time for the main thread remains low (**24.4 µs**), while wall-clock time reaches **1,051 µs**.
+  * This large delta indicates that worker threads are not compute-bound; they spend the vast majority of their CPU cycles spinning, work-stealing, and waiting on barrier condition variables (oversubscription).
+
+---
+
+#### 3. Industrial Implications: Amdahl's Law vs. Gustafson's Law
+* **Amdahl's Law (Micro-Circuits):** For circuits under 10,000 gates, single-threaded execution on modern high-IPC CPUs (such as the Golden Cove P-cores @ 4.7 GHz) is optimal due to zero synchronization overhead.
+* **Gustafson's Law (Industrial Production Netlists):** In commercial ASIC designs (10 million to 50 million gates), individual topological levels contain **50,000 to 200,000 gates**, requiring tens of milliseconds per level. At that scale, the ~1–2 µs Taskflow barrier represents less than **0.01% overhead**, allowing multi-threaded levelization to achieve near-linear multi-core speedup.

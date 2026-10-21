@@ -6,6 +6,8 @@
 #define STA_ENGINE_STANALYZER_H
 
 #include <limits>
+#include <taskflow/taskflow.hpp>
+#include <taskflow/algorithm/for_each.hpp>
 #include "TimingGraph.h"
 
 inline constexpr float NEG_INF = -std::numeric_limits<float>::infinity();
@@ -53,4 +55,8 @@ auto calculate_RAT(TimingGraph& timing_graph, STAState& sta_state, Analysis mode
 auto calculate_incremental_AAT(TimingGraph& timing_graph, STAState& sta_state, ArcUpdates& arc_data, Analysis mode) -> void;
 auto calculate_incremental_RAT(TimingGraph& timing_graph, STAState& sta_state, ArcUpdates& arc_data, Analysis mode) -> void;
 
+auto build_AAT_tasks(tf::Taskflow& task_graph, TimingGraph& timing_graph, STAState& sta_state, Analysis mode) -> tf::Task;
+auto build_RAT_tasks(tf::Taskflow& task_graph, TimingGraph& timing_graph, STAState& sta_state, Analysis mode) -> tf::Task;
+auto build_slack_tasks(tf::Taskflow& task_graph, TimingGraph& timing_graph, STAState& sta_state, Analysis mode) -> tf::Task;
+auto calculate_slack_full_pass_parallel(TimingGraph& timing_graph, STAState& sta_state, Analysis mode, tf::Executor& executor) -> void;
 #endif //STA_ENGINE_STANALYZER_H
