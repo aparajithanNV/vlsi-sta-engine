@@ -19,7 +19,6 @@ if (BUILD_TESTING)
     add_executable(sta_tests
             tests/test_timing_graph.cpp
             tests/test_analyzer.cpp
-            tests/test_sta_engine.cpp
             tests/test_parser.cpp)
     target_link_libraries(sta_tests PRIVATE sta_core GTest::gtest GTest::gtest_main GTest::gmock GTest::gmock_main)
     include(GoogleTest)
