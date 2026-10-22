@@ -117,6 +117,21 @@ auto TimingGraph::update_input_pins(PinID pin_id) -> void
     input_pins.emplace_back(pin_id);
 }
 
+auto TimingGraph::get_input_pins() -> std::span<PinID>
+{
+    return std::span<PinID>(input_pins.data(), input_pins.size());
+}
+
+auto TimingGraph::update_output_pins(PinID pin_id) -> void
+{
+    output_pins.emplace_back(pin_id);
+}
+
+auto TimingGraph::get_output_pins() -> std::span<PinID>
+{
+    return std::span<PinID>(output_pins.data(), output_pins.size());
+}
+
 auto TimingGraph::find_topological_levels() -> bool
 {
     pin_indegrees.clear();

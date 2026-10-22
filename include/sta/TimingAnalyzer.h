@@ -35,6 +35,7 @@ struct STAState
 
    float circuit_RAT; // constraint set by user
    float wns; // worst-case negative slack
+   std::vector<PinID> critical_path;
 };
 
 struct ArcUpdates
@@ -59,4 +60,7 @@ auto build_AAT_tasks(tf::Taskflow& task_graph, TimingGraph& timing_graph, STASta
 auto build_RAT_tasks(tf::Taskflow& task_graph, TimingGraph& timing_graph, STAState& sta_state, Analysis mode) -> tf::Task;
 auto build_slack_tasks(tf::Taskflow& task_graph, TimingGraph& timing_graph, STAState& sta_state, Analysis mode) -> tf::Task;
 auto calculate_slack_full_pass_parallel(TimingGraph& timing_graph, STAState& sta_state, Analysis mode, tf::Executor& executor) -> void;
+
+auto find_critical_path(TimingGraph& timing_graph, STAState& sta_state, Analysis mode) -> void;
+auto report_timing(STAState& sta_state, Analysis mode) -> void;
 #endif //STA_ENGINE_STANALYZER_H

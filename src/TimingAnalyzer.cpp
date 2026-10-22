@@ -8,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <cstdint>
+#include <algorithm>
 
 
 auto analyze(TimingGraph& timing_graph, STAMode sta_mode, STAState& sta_state, ArcUpdates& arc_data) -> bool
@@ -581,4 +582,78 @@ auto calculate_slack_full_pass_parallel(TimingGraph& timing_graph, STAState& sta
     executor.run(task_graph).wait();
     auto wns = *std::min_element(sta_state.slack.begin(), sta_state.slack.end());
     sta_state.wns = wns;
+}
+
+
+auto find_critical_path(TimingGraph& timing_graph, STAState& sta_state, Analysis mode) -> void
+{
+    auto output_pins = timing_graph.get_output_pins();
+    auto min_slack = POS_INF;
+    PinID critical_output_pin = UINT32_MAX;
+    for (auto pin : output_pins)
+    {
+        if (sta_state.slack[pin] < min_slack)
+        {
+            critical_output_pin = pin;
+            min_slack = sta_state.slack[pin];
+        }
+    }
+
+    auto fanin_arcs = timing_graph.get_fanin_arcs(critical_output_pin);
+    auto current_pin = critical_output_pin;
+    float arc_delay = 0.0;
+    std::vector<PinID> critical_path_pins;
+    critical_path_pins.emplace_back(critical_output_pin);
+    while (!fanin_arcs.empty())
+    {
+        bool found_predecessor = false;
+        for (auto arc : fanin_arcs)
+        {
+            auto src_pin = timing_graph.get_source_pin(arc);
+            auto src_pin_AAT = sta_state.actual_arrival_times[src_pin];
+
+            if (mode == Analysis::Late)
+                arc_delay = timing_graph.get_late_delay(arc);
+            else if (mode == Analysis::Early)
+                arc_delay = timing_graph.get_early_delay(arc);
+            auto aat = src_pin_AAT + arc_delay;
+            if (std::abs(aat - sta_state.actual_arrival_times[current_pin]) < 1e-5f)
+            {
+                current_pin = src_pin;
+                fanin_arcs = timing_graph.get_fanin_arcs(current_pin);
+                critical_path_pins.emplace_back(current_pin);
+                found_predecessor = true;
+                break;
+            }
+        }
+        if (!found_predecessor)
+        {
+            break;
+        }
+    }
+    std::ranges::reverse(critical_path_pins);
+    sta_state.critical_path = critical_path_pins;
+}
+
+auto report_timing(STAState& sta_state, Analysis mode) -> void
+{
+    auto worst_case_negative_slack = sta_state.wns;
+    auto critical_path = sta_state.critical_path;
+    if (mode == Analysis::Late)
+    {
+        std::cout << "Analysis mode: Late" << "\n";
+    }
+    else if (mode == Analysis::Early)
+    {
+        std::cout << "Early mode: Early" << "\n";
+    }
+    std::cout << "Worst Case Negative Slack=" << worst_case_negative_slack << "\n";
+    for (auto pin : critical_path)
+    {
+        auto aat = sta_state.actual_arrival_times[pin];
+        auto rat = sta_state.required_arrival_times[pin];
+        auto slack = sta_state.slack[pin];
+        std::cout << "Pin=" << pin << " slack=" << slack << " AAT=" << aat << " RAT=" << rat << "\n";
+    }
+    std::cout.flush();
 }

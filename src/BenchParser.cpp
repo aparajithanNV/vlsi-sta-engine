@@ -76,6 +76,7 @@ auto BenchParser::parse_output(std::string_view line, TimingGraph &timing_graph,
         }
         auto new_pin_id = timing_graph.add_pin(PinType::PO);
         net_destinations[net_id].emplace_back(new_pin_id);
+        timing_graph.update_output_pins(new_pin_id);
     }
     return 0;
 }

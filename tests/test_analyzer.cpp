@@ -15,12 +15,17 @@ namespace
         TimingGraph timing_graph;
         STAState sta_state;
         ArcUpdates arc_data;
+        PinID pin_id;
 
         void SetUp() override
         {
-            timing_graph.add_pin(PinType::PI);       // a=0
-            timing_graph.add_pin(PinType::PI);       // b=1
-            timing_graph.add_pin(PinType::PI);       // c=2
+            pin_id = timing_graph.add_pin(PinType::PI);       // a=0
+            timing_graph.update_input_pins(pin_id);
+            pin_id = timing_graph.add_pin(PinType::PI);       // b=1
+            timing_graph.update_input_pins(pin_id);
+            pin_id = timing_graph.add_pin(PinType::PI);       // c=2
+            timing_graph.update_input_pins(pin_id);
+
             timing_graph.add_pin(PinType::INTERNAL); // x0=3
             timing_graph.add_pin(PinType::INTERNAL); // x1=4
             timing_graph.add_pin(PinType::INTERNAL); // y0=5
@@ -32,7 +37,8 @@ namespace
             timing_graph.add_pin(PinType::INTERNAL); // w0=11
             timing_graph.add_pin(PinType::INTERNAL); // w1=12
             timing_graph.add_pin(PinType::INTERNAL); // w2=13
-            timing_graph.add_pin(PinType::PO);       // f=14
+            pin_id = timing_graph.add_pin(PinType::PO);       // f=14
+            timing_graph.update_output_pins(pin_id);
             timing_graph.add_pin(PinType::INTERNAL); // s=15
 
             PinID a{0};
@@ -184,5 +190,16 @@ namespace
             ASSERT_NEAR(golden_state.required_arrival_times[i], parallel_state.required_arrival_times[i], 1e-5);
             ASSERT_NEAR(golden_state.slack[i], parallel_state.slack[i], 1e-5);
         }
+    }
+
+    TEST_F(TimingAnalyzerTest, CriticalPath)
+    {
+        calculate_slack_full_pass_late(timing_graph, sta_state);
+        find_critical_path(timing_graph, sta_state, Analysis::Late);
+        auto critical_path = sta_state.critical_path;
+        PinID s=15, b=1, x1=4, x0=3, z1=9, z0=8, w2=13, w0=11, f=14;
+        std::vector<PinID> golden_critical_path{s, b, x1, x0, z1, z0, w2, w0, f};
+        ASSERT_EQ(critical_path, golden_critical_path);
+        report_timing(sta_state, Analysis::Late);
     }
 }

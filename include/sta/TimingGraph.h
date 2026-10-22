@@ -54,6 +54,9 @@ class TimingGraph
     [[nodiscard]] auto get_number_of_pins() const noexcept-> uint32_t;
     [[nodiscard]] auto get_number_of_arcs() const noexcept-> uint32_t;
     auto update_input_pins(PinID pin_id) -> void;
+    auto get_input_pins() -> std::span<PinID>;
+    auto update_output_pins(PinID pin_id) -> void;
+    auto get_output_pins() -> std::span<PinID>;
     auto populate_pin_neighbors() -> void;
     [[nodiscard]] auto get_pin_to_level_map() const noexcept -> std::span<const uint32_t>;
     private:
@@ -75,6 +78,7 @@ class TimingGraph
     std::vector<PinID> arc_source_pins;
 
     std::vector<PinID> input_pins;
+    std::vector<PinID> output_pins;
     std::vector<uint8_t> pin_indegrees;
     std::vector<PinID> topological_levels;
     std::vector<uint32_t> topological_levels_offsets;
