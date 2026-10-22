@@ -200,6 +200,6 @@ namespace
         PinID s=15, b=1, x1=4, x0=3, z1=9, z0=8, w2=13, w0=11, f=14;
         std::vector<PinID> golden_critical_path{s, b, x1, x0, z1, z0, w2, w0, f};
         ASSERT_EQ(critical_path, golden_critical_path);
-        report_timing(sta_state, Analysis::Late);
+        report_timing(timing_graph, sta_state, Analysis::Late);
     }
 }

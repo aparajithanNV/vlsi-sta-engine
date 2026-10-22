@@ -36,6 +36,11 @@ auto TimingGraph::set_arc_delay(ArcID arc_id, float early_delay, float late_dela
     arc_late_delays[arc_id] = late_delay;
 }
 
+auto TimingGraph::get_arc_type(ArcID arc_id) const noexcept -> ArcType
+{
+    return arc_types[arc_id];
+}
+
 auto TimingGraph::get_number_of_arcs() const noexcept -> uint32_t
 {
     return static_cast<uint32_t>(arc_types.size());

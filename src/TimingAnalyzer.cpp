@@ -9,7 +9,7 @@
 #include <limits>
 #include <cstdint>
 #include <algorithm>
-
+#include <iomanip>
 
 auto analyze(TimingGraph& timing_graph, STAMode sta_mode, STAState& sta_state, ArcUpdates& arc_data) -> bool
 {
@@ -603,6 +603,7 @@ auto find_critical_path(TimingGraph& timing_graph, STAState& sta_state, Analysis
     auto current_pin = critical_output_pin;
     float arc_delay = 0.0;
     std::vector<PinID> critical_path_pins;
+    std::vector<ArcID> critical_path_arcs;
     critical_path_pins.emplace_back(critical_output_pin);
     while (!fanin_arcs.empty())
     {
@@ -622,6 +623,7 @@ auto find_critical_path(TimingGraph& timing_graph, STAState& sta_state, Analysis
                 current_pin = src_pin;
                 fanin_arcs = timing_graph.get_fanin_arcs(current_pin);
                 critical_path_pins.emplace_back(current_pin);
+                critical_path_arcs.emplace_back(arc);
                 found_predecessor = true;
                 break;
             }
@@ -632,28 +634,75 @@ auto find_critical_path(TimingGraph& timing_graph, STAState& sta_state, Analysis
         }
     }
     std::ranges::reverse(critical_path_pins);
+    std::ranges::reverse(critical_path_arcs);
     sta_state.critical_path = critical_path_pins;
+    sta_state.critical_path_arcs = critical_path_arcs;
 }
 
-auto report_timing(STAState& sta_state, Analysis mode) -> void
+auto report_timing(TimingGraph& timing_graph, STAState& sta_state, Analysis mode) -> void
 {
     auto worst_case_negative_slack = sta_state.wns;
     auto critical_path = sta_state.critical_path;
+    auto critical_path_arcs = sta_state.critical_path_arcs;
+    auto start_pin = critical_path.front();
+    auto end_pin = critical_path.back();
+    auto data_arrival_time = sta_state.actual_arrival_times[end_pin];
+    auto data_required_time = sta_state.required_arrival_times[end_pin];
+
+    char fill_char = '.';
+    int line_width = 100;
+    std::string banner(static_cast<size_t>(line_width), fill_char);
+    std::cout << banner << "\n";
     if (mode == Analysis::Late)
     {
-        std::cout << "Analysis mode: Late" << "\n";
+        std::cout << std::left << std::setw(line_width) << "CRITICAL PATH TIMING REPORT LATE MODE" << "\n";
     }
     else if (mode == Analysis::Early)
     {
-        std::cout << "Early mode: Early" << "\n";
+        std::cout << std::left << std::setw(line_width) << "CRITICAL PATH TIMING REPORT EARLY MODE" << "\n";
     }
-    std::cout << "Worst Case Negative Slack=" << worst_case_negative_slack << "\n";
+    std::cout << banner << "\n";
+    std::cout << std::setw(20) << std::left << "Startpoint: "<< std::setw(20) << std::right << start_pin << "\n";
+    std::cout << std::setw(20) << std::left << "Endpoint: " <<std:: setw(20) << std::right << end_pin << "\n";
+    std::cout << std::setw(20) << std::left << "Slack: " << std::setw(20) << std::right << worst_case_negative_slack << "\n";
+    std::cout << banner <<"\n";
+    int column_width = 15;
+    float incr_delay = 0.0;
+    float prev_aat = sta_state.actual_arrival_times[start_pin];
+    std::cout << std::right << std::setw(column_width) << "Pin" << std::setw(column_width) << "Arc Type" << std::setw(column_width) << "Incr Delay"
+        << std::setw(column_width) << "Arrival Time" << std::setw(column_width) << "Required Time" << std::setw(column_width) << "Slack" << "\n";
+    size_t count = 0;
     for (auto pin : critical_path)
     {
         auto aat = sta_state.actual_arrival_times[pin];
         auto rat = sta_state.required_arrival_times[pin];
         auto slack = sta_state.slack[pin];
-        std::cout << "Pin=" << pin << " slack=" << slack << " AAT=" << aat << " RAT=" << rat << "\n";
+        auto arc_type = "NONE";
+        if (pin == start_pin)
+        {
+            incr_delay = 0;
+            prev_aat = aat;
+            arc_type = "SOURCE";
+        }
+        else
+        {
+            incr_delay = aat - prev_aat;
+            prev_aat = aat;
+            auto arc_id = critical_path_arcs[count];
+            auto edge_type = timing_graph.get_arc_type(arc_id);
+            if (edge_type == ArcType::GATE) arc_type = "GATE";
+            else if (edge_type == ArcType::WIRE) arc_type = "WIRE";
+            count += 1;
+        }
+        std::cout << std::setw(column_width) << pin << std::setw(column_width) << arc_type << std::setw(column_width) << incr_delay
+            << std::setw(column_width) << aat << std::setw(column_width) << rat << std::setw(column_width) << slack << "\n";
     }
+    std::cout << banner << "\n";
+    std::cout << std::left << std::setw(20) << "Data Arrival Time: " << std::right << std::setw(30)  << data_arrival_time << "\n";
+    std::cout << std::left << std::setw(20) << "Data Required Time: " << std::right << std::setw(30) << data_required_time << "\n";
+    std::string violation_status;
+    if (worst_case_negative_slack < 0) {violation_status = " (TIMING VIOLATION) ";}
+    else {violation_status = " (TIMING MET) ";}
+    std::cout << std::left << std::setw(20) << "Worst Negative Slack: " << std::right << std::setw(30) << worst_case_negative_slack << violation_status << "\n";
     std::cout.flush();
 }

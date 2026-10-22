@@ -117,3 +117,29 @@ The multi-core scaling curve on `c7552` illustrates the synchronization bounds d
 #### 3. Industrial Implications: Amdahl's Law vs. Gustafson's Law
 * **Amdahl's Law (Micro-Circuits):** For circuits under 10,000 pins where sequential runtime is under $150\,\mu\text{s}$, single-threaded execution on modern high-IPC CPUs (Intel Golden Cove P-cores @ 4.7 GHz) is optimal due to zero synchronization latency.
 * **Gustafson's Law (Industrial Netlists):** In commercial ASIC designs (10M to 50M gates), individual topological levels contain **50,000 to 200,000 pins**, requiring tens of milliseconds per level. At that scale, the ~1–2 µs barrier represents less than **0.01% overhead**, enabling level-parallel sweeps to achieve near-linear multi-core speedup.
+
+### Example Timing Report from Unit test
+
+```text
+....................................................................................................
+CRITICAL PATH TIMING REPORT LATE MODE                                                               
+....................................................................................................
+Startpoint:                           15
+Endpoint:                             14
+Slack:                             -0.35
+....................................................................................................
+            Pin       Arc Type     Incr Delay   Arrival Time  Required Time          Slack
+             15         SOURCE              0              0          -0.35          -0.35
+              1           WIRE              0              0          -0.35          -0.35
+              4           WIRE            0.1            0.1          -0.25          -0.35
+              3           GATE              1            1.1           0.75          -0.35
+              9           WIRE            0.3            1.4           1.05          -0.35
+              8           GATE              2            3.4           3.05          -0.35
+             13           WIRE           0.25           3.65            3.3          -0.35
+             11           GATE              2           5.65            5.3          -0.35
+             14           WIRE            0.2           5.85            5.5          -0.35
+....................................................................................................
+Data Arrival Time:                            5.85
+Data Required Time:                            5.5
+Worst Negative Slack:                          -0.35 (TIMING VIOLATION) 
+```

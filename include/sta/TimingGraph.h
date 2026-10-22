@@ -41,11 +41,12 @@ class TimingGraph
     auto add_pin(PinType pin_type) -> PinID;
     auto add_arc(PinID pin_1, PinID pin_2, ArcType arc_type, float early_delay, float late_delay) -> ArcID;
     auto set_arc_delay(ArcID arc_id, float early_delay, float late_delay) -> void;
+    [[nodiscard]] auto get_arc_type(ArcID arc_id) const noexcept -> ArcType;
     [[nodiscard]] auto get_fanout_arcs(PinID pin) const -> std::span<const ArcID>;
     [[nodiscard]] auto get_fanin_arcs(PinID pin) const -> std::span<const ArcID>;
     [[nodiscard]] auto get_early_delay(ArcID arc_id) const -> float;
     [[nodiscard]] auto get_late_delay(ArcID arc_id) const -> float;
-    // Kahn's topological sort algorithm and checks for cycles
+    // Kahn's topological sort algorithm
     [[nodiscard]] auto find_topological_levels() -> bool;
     [[nodiscard]] auto get_number_of_topological_levels() const noexcept -> uint32_t;
     [[nodiscard]] auto find_pins_in_level(uint32_t level_num) const -> std::span<const PinID>;
