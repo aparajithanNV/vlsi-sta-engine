@@ -1,4 +1,8 @@
-# vlsi-sta-engine
+# Static Timing Analysis Engine
+[![Language](https://img.shields.io/badge/Language-C%2B%2B20-blue.svg)](https://en.cppreference.com/w/cpp/20)
+[![Standard](https://img.shields.io/badge/Standard-ISO%20C%2B%2B20-green.svg)](https://isocpp.org/)
+[![Build System](https://img.shields.io/badge/Build-CMake%20Presets%20%2B%20Ninja-orange.svg)](https://cmake.org/)
+[![Sanitizers](https://img.shields.io/badge/Sanitizers-ASan%20%2B%20UBSan-brightgreen.svg)](https://clang.llvm.org/docs/AddressSanitizer.html)
 
 A high-performance, cache-optimized, multi-threaded Static Timing Analysis (STA) engine implemented in modern C++20.
 
